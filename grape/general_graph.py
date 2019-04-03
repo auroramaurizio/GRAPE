@@ -64,9 +64,9 @@ class GeneralGraph(nx.DiGraph):
 
             Each line should contain the following info:
             - component id ("Mark")
-            - parent of the component id ("father_mark")
+            - parent of the component id ("Father_mark")
             - parent-child relationship
-              ("father_cond": AND, OR, SINGLE, ORPHAN. It is an edge attribute.)
+              ("Father_cond": AND, OR, SINGLE, ORPHAN. It is an edge attribute.)
             - type of component
               ("Description": isolation_A, isolation_B are isolating components
               with opposite behaviour. It is a node attribute.)
@@ -118,17 +118,17 @@ class GeneralGraph(nx.DiGraph):
                 for key in [
                         'Area', 'PerturbationResistant',
                         'InitStatus', 'Description', 'From_to', 'Mark',
-                        'father_mark']:
+                        'Father_mark']:
                     self.node[row['Mark']][key] = row[key]
 
-                if row['father_mark'] == 'NULL':
+                if row['Father_mark'] == 'NULL':
                     continue
 
-                if not row['father_mark'] in self:
-                    self.add_node(row['father_mark'])
+                if not row['Father_mark'] in self:
+                    self.add_node(row['Father_mark'])
 
-                self.add_edge(row['father_mark'], row['Mark'],
-                              father_cond=row['father_cond'])
+                self.add_edge(row['Father_mark'], row['Mark'],
+                              Father_cond=row['Father_cond'])
 
 
         self.broken = []
@@ -143,8 +143,8 @@ class GeneralGraph(nx.DiGraph):
         self.D = nx.get_node_attributes(self, 'Description')
         self.status = nx.get_node_attributes(self, 'InitStatus')
         self.Mark = nx.get_node_attributes(self, 'Mark')
-        self.father_mark = nx.get_node_attributes(self, 'father_mark')
-        self.condition = nx.get_edge_attributes(self, 'father_cond')
+        self.Father_mark = nx.get_node_attributes(self, 'Father_mark')
+        self.condition = nx.get_edge_attributes(self, 'Father_cond')
         self.pos = graphviz_layout(self, prog='dot')
 
         self.services_FROM = set()
@@ -187,7 +187,7 @@ class GeneralGraph(nx.DiGraph):
         nodes_to_print = []
         with open("check_import_nodes.csv", "w") as csvFile:
             fields = ["Mark", "Description", "InitStatus",
-                      "PerturbationResistant", "Area"]
+                      "PerturbationResistant", "Room"]
 
             writer = csv.DictWriter(csvFile, fieldnames=fields)
             writer.writeheader()
@@ -197,14 +197,14 @@ class GeneralGraph(nx.DiGraph):
                                            'Description':self.copy_of_self1.node[n]["Description"],
                                            'InitStatus' : self.copy_of_self1.node[n]["InitStatus"],
                                            'PerturbationResistant': self.copy_of_self1.node[n]["PerturbationResistant"],
-                                           'Area' : self.copy_of_self1.node[n]["Area"]})
+                                           'Room' : self.copy_of_self1.node[n]["Area"]})
                 writer.writerows(nodes_to_print)
             else:
                 for n in self:
                     nodes_to_print.append({'Mark': n, 'Description':self.node[n]["Description"],
                                            'InitStatus' : self.node[n]["InitStatus"],
                                            'PerturbationResistant': self.node[n]["PerturbationResistant"],
-                                           'Area' : self.node[n]["Area"]})
+                                           'Room' : self.node[n]["Area"]})
                 writer.writerows(nodes_to_print)
 
         csvFile.close()
@@ -212,20 +212,23 @@ class GeneralGraph(nx.DiGraph):
 
         edges_to_print = []
         with open("check_import_edges.csv", "w") as csvFile:
-            fields = ["Mark", "father_mark"]
-
+            fields = ["Mark", "Father_mark"]
             writer = csv.DictWriter(csvFile, fieldnames=fields)
             writer.writeheader()
+
             if hasattr(self, "copy_of_self1"):
-                for n in self.copy_of_self1:
-                    edges_to_print.append({'Mark': n,
-                                           'father_mark':self.copy_of_self1.node[n]["father_mark"]})
-                writer.writerows(edges_to_print)
+    	        for n in self.copy_of_self1:
+                    for p in self.copy_of_self1.predecessors(n):
+                        edges_to_print.append({'Mark': n,
+                                               'Father_mark': p})
+
             else:
                 for n in self:
-                    edges_to_print.append({'Mark': n,
-                                           'father_mark':self.node[n]["father_mark"]})
-                writer.writerows(edges_to_print)
+                    for p in self.predecessors(n):
+                        edges_to_print.append({'Mark': n,
+                                               'Father_mark': p})
+
+            writer.writerows(edges_to_print)
 
         csvFile.close()
 
@@ -1081,7 +1084,7 @@ class GeneralGraph(nx.DiGraph):
         print("In the graph are present", n_of_nodes, "nodes")
         if n_of_nodes > 10000:
             print("go parallel!")
-            if g_density <= 0.7:
+            if g_density <= 0.000001:
                 print ("the graph is sparse, density =", g_density)
                 self.parallel_wrapper_proc()
             else:
@@ -1089,7 +1092,7 @@ class GeneralGraph(nx.DiGraph):
                 self.floyd_warshall_predecessor_and_distance_parallel()
         else:
             print("go serial!")
-            if g_density <= 0.7:
+            if g_density <= 0.000001:
                 print ("the graph is sparse, density =", g_density)
                 self.single_source_shortest_path_serial()
             else:
@@ -1517,25 +1520,34 @@ class GeneralGraph(nx.DiGraph):
 
             self.newstatus = {k: v for k, v in self.newstatus.items() if k not in self.bn}
 
+            if self.newstatus:
+
+                ns_keys = self.newstatus.keys() & list(self.copy_of_self1)
+                os_keys = set(self.copy_of_self1) - set(ns_keys)
+
+                for id, newstatus  in self.newstatus.items():
+                    self.copy_of_self1.node[id]["IntermediateStatus"] = newstatus
+                for id in os_keys:
+                    self.copy_of_self1.node[id]["IntermediateStatus"] = " "
+            else:
+                for id in list(self.copy_of_self1):
+                    self.copy_of_self1.node[id]["IntermediateStatus"] = " "
+
+
+            if self.finalstatus:
+                fs_keys = self.finalstatus.keys() & list(self.copy_of_self1)
+                ost_keys = set(self.copy_of_self1) - set(fs_keys)
+
+                for id, finalstatus  in self.finalstatus.items():
+                    self.copy_of_self1.node[id]["FinalStatus"] = finalstatus
+                for id in ost_keys:
+                    self.copy_of_self1.node[id]["FinalStatus"] = " "
+            else:
+                for id in list(self.copy_of_self1):
+                    self.copy_of_self1.node[id]["FinalStatus"] = " "
+
+
             for n in self.copy_of_self1:
-
-                if self.newstatus:
-                    for id, newstatus in self.newstatus.items():
-                        if id == n:
-                            self.copy_of_self1.node[n]["IntermediateStatus"] = newstatus
-                        else:
-                            self.copy_of_self1.node[n]["IntermediateStatus"] = " "
-                else:
-                    self.copy_of_self1.node[n]["IntermediateStatus"] = " "
-
-                if self.finalstatus:
-                    for id, finalstatus  in self.finalstatus.items():
-                        if id == n:
-                            self.copy_of_self1.node[n]["FinalStatus"] = finalstatus
-                        else:
-                            self.copy_of_self1.node[n]["FinalStatus"] = " "
-                else:
-                    self.copy_of_self1.node[n]["FinalStatus"] = " "
 
                 if n in self.bn:
                     self.copy_of_self1.node[n]["Mark_Status"] = "NOT_ACTIVE"
@@ -1550,7 +1562,7 @@ class GeneralGraph(nx.DiGraph):
                 fields = ["Mark", "Description", "InitStatus",
                           "IntermediateStatus", "FinalStatus",
                           "Mark_Status", "PerturbationResistant",
-                          "Area", "Status_Room",
+                          "Room", "Status_Room",
                           "closeness_centrality", "betweenness_centrality",
                           "indegree_centrality", "original_local_eff",
                           "final_local_eff", "original_global_eff",
@@ -1561,10 +1573,12 @@ class GeneralGraph(nx.DiGraph):
                 writer.writeheader()
 
                 for n in self.copy_of_self1:
-
                     list_to_print.append({'Mark': n, 'Description':self.copy_of_self1.node[n]["Description"], 'InitStatus' : self.copy_of_self1.node[n]["InitStatus"],
                                           'IntermediateStatus' : self.copy_of_self1.node[n]["IntermediateStatus"], 'FinalStatus' : self.copy_of_self1.node[n]["FinalStatus"], 'Mark_Status' : self.copy_of_self1.node[n]["Mark_Status"],
-                                          'PerturbationResistant': self.copy_of_self1.node[n]["PerturbationResistant"],  'closeness_centrality' : self.copy_of_self1.node[n]["closeness_centrality"],
+                                          'PerturbationResistant': self.copy_of_self1.node[n]["PerturbationResistant"],
+'Room' : self.copy_of_self1.node[n]["Area"],
+                                      'Status_Room' : self.copy_of_self1.node[n]["Status_Room"],
+  'closeness_centrality' : self.copy_of_self1.node[n]["closeness_centrality"],
                                           'betweenness_centrality': self.copy_of_self1.node[n]["betweenness_centrality"], 'indegree_centrality' : self.copy_of_self1.node[n]["indegree_centrality"],
                                           'original_local_eff': self.copy_of_self1.node[n]["original_local_eff"], 'final_local_eff': self.copy_of_self1.node[n]["final_local_eff"],
                                           'original_global_eff': self.copy_of_self1.node[n]["original_nodal_eff"], 'final_global_eff': self.copy_of_self1.node[n]["final_nodal_eff"],
@@ -1669,7 +1683,7 @@ class GeneralGraph(nx.DiGraph):
         with open("room_perturbation.csv", "w") as csvFile:
             fields = ["Mark", "Description", "InitStatus", "IntermediateStatus",
                       "FinalStatus", "Mark_Status",
-                      "PerturbationResistant", "Area",
+                      "PerturbationResistant", "Room",
                       "Status_Room", "closeness_centrality",
                       "betweenness_centrality", "indegree_centrality",
                       "original_local_eff", "final_local_eff",
@@ -1682,7 +1696,7 @@ class GeneralGraph(nx.DiGraph):
             for n in self.copy_of_self1:
                 list_to_print.append({'Mark': n, 'Description':self.copy_of_self1.node[n]["Description"], 'InitStatus' : self.copy_of_self1.node[n]["InitStatus"],
                                       'IntermediateStatus' : self.copy_of_self1.node[n]["IntermediateStatus"], 'FinalStatus' : self.copy_of_self1.node[n]["FinalStatus"], 'Mark_Status' : self.copy_of_self1.node[n]["Mark_Status"],
-                                      'PerturbationResistant': self.copy_of_self1.node[n]["PerturbationResistant"],  'Area' : self.copy_of_self1.node[n]["Area"],
+                                      'PerturbationResistant': self.copy_of_self1.node[n]["PerturbationResistant"],  'Room' : self.copy_of_self1.node[n]["Area"],
                                       'Status_Room' : self.copy_of_self1.node[n]["Status_Room"], 'closeness_centrality' : self.copy_of_self1.node[n]["closeness_centrality"],
                                       'betweenness_centrality': self.copy_of_self1.node[n]["betweenness_centrality"], 'indegree_centrality' : self.copy_of_self1.node[n]["indegree_centrality"],
                                       'original_local_eff': self.copy_of_self1.node[n]["original_local_eff"], 'final_local_eff': self.copy_of_self1.node[n]["final_local_eff"],

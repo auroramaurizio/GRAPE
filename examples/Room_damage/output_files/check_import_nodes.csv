@@ -1,7 +1,7 @@
-Mark,Description,InitStatus,PerturbationResistant,Area
+Mark,Description,InitStatus,PerturbationResistant,Room
 1,,,1,room1
-2,isolation_A,0,1,room1
-3,isolation_A,0,1,room1
+2,isolation_A,1,1,room1
+3,isolation_A,1,1,room1
 4,,,1,room1
 5,,,1,room1
 6,,,0,room4
